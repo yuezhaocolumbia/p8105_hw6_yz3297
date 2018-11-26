@@ -8,6 +8,8 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(modelr)
+library(mgcv)
 ```
 
 ##Problem 1
@@ -75,6 +77,8 @@ final_OR2 =
   mutate(OR = exp(estimate),CILOW=exp(estimate-std.error),CIUP=exp(estimate+std.error)) %>% 
   select(city_state,OR,CILOW,CIUP)
   
+final_OR2 %>% 
+  knitr::kable(digits=3) 
 ```
 
 ####Then I nested the regression variables and mapped the dataset to a dataset with city_state, data, map2. Then I dropped data and unnest the dataset. I mutated to create a the OR and confidence interval estimate. Finally, I dropped other variables. 
@@ -95,3 +99,98 @@ final_OR2 %>%
 ```
 
 ####I plotted the OR and 95% CI by each city. The plot shows most of the cities have an OR less than 1, which means the cases with a non white victim are less likely to get solved. This shows the same conclusion in the article. 
+
+
+
+##Problem 2
+
+
+```{r,message=FALSE}
+birthweight = read_csv(file = "./data/birthweight.csv") %>% 
+  mutate(babysex = as.factor(babysex),
+         frace = as.factor(frace),
+         malform = as.factor(malform),
+         mrace = as.factor(mrace))
+
+reg_result1 = lm(bwt ~ babysex + delwt + fincome + frace + gaweeks + malform + menarche + mheight + momage 
+                + mrace + parity + pnumlbw + pnumsga + ppbmi + ppwt + smoken + wtgain, data = birthweight) %>% 
+broom::tidy()
+
+```
+
+
+#### I first decided to throw away blength and bhead because regression model is to predict the birthweight of the baby. These are measured after the baby is born and thus the weigtht of the baby is known by the time of knowing the baby's length and baby's head circumference. The selection method I used for the linear model is that I ran a full regression on all the variables and then select significant varibles with the p values less than 0.01.  (a combination of theoretical and data driven method)
+
+###Model 1
+
+```{r}
+reg_result1  %>% 
+knitr::kable(digits=3) 
+```
+
+The significant ones are gaweeks, delwt, smoken, babysex, mrace, fincome, momage, ppwt. Then we fit a second model including only the significant variables. 
+
+
+###Model 2
+```{r}
+reg_result2= lm(bwt ~ gaweeks + delwt + smoken + babysex + mrace + fincome + momage + ppwt , data = birthweight)
+
+reg_result2  %>% 
+broom::tidy() %>% 
+knitr::kable(digits=3) 
+
+
+birthweight %>% 
+select(bwt,gaweeks,delwt ,smoken , babysex , mrace ,fincome , momage , ppwt , mheight) %>% 
+modelr::add_predictions(reg_result2) %>% 
+modelr::add_residuals(reg_result2) %>% 
+ggplot(aes(x = resid, y = pred, color = bwt)) + geom_point()
+
+```
+
+
+####The residual is fairly symmetric to 0 and this means the variance of the data do not vary by the predicted value (which means no heteroscedasticity).
+
+```{r}
+
+reg_resultAlt1 = lm(bwt ~ blength + gaweeks, data = birthweight)
+reg_resultAlt2 = lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex
+          + bhead * blength * babysex, data = birthweight)
+
+cv_df = 
+  crossv_mc(birthweight, 10) %>% 
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble)) %>% 
+  mutate(reg_result2 = map(train, ~lm(bwt ~ gaweeks + delwt + smoken + babysex + mrace + fincome + momage + ppwt , data = .x)),
+         reg_resultAlt1 = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+         reg_resultAlt2 = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead * blength + 
+                                 bhead * babysex + blength * babysex + 
+                                 bhead * blength * babysex, data = .x))) %>% 
+  mutate(rmse_Model2 = map2_dbl(reg_result2, test, ~rmse(model = .x, data = .y)),
+         rmse_Alt1 = map2_dbl(reg_resultAlt1, test, ~rmse(model = .x, data = .y)),
+         rmse_Alt2 = map2_dbl(reg_resultAlt2, test, ~rmse(model = .x, data = .y)))
+```
+
+
+####Then I did the cross validation between my model2 and the two alternative models. 
+
+
+```{r}
+cv_df %>% 
+  select(.id, starts_with("rmse")) %>% 
+  gather(key = model, value = rmse, rmse_Model2:rmse_Alt2) %>% 
+  mutate(model = str_replace(model, "rmse_", ""),
+         model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+```
+
+####In the plot, we can see the rmse for Aiternative 2 is the best, since it is the smallest. So the model I fit above is not the best model in terms of fitting. 
+
+
+
+
+
+
+
+
+
