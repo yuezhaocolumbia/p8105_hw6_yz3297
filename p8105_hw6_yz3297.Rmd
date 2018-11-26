@@ -62,7 +62,7 @@ orfunc1= function(x) {
 
 ```
 
-####The final_OR dataset is to create a clean dataset that only includes the data we need for the OR calculation. Then I define a function to do the logistic regression and get the beta estimate and standard error terms.These are prepared to be used in the mapping step coming up next. 
+####The final_OR dataset is to create a clean dataset that only includes the data we need for the OR calculation. Then I defined a function to do the logistic regression and get the beta estimate and standard error terms.These are prepared to be used in the mapping step coming up next. 
 
 
 ```{r}
@@ -128,7 +128,7 @@ reg_result1  %>%
 knitr::kable(digits=3) 
 ```
 
-The significant ones are gaweeks, delwt, smoken, babysex, mrace, fincome, momage, ppwt. Then we fit a second model including only the significant variables. 
+####The significant ones are gaweeks, delwt, smoken, babysex, mrace, fincome, momage, ppwt. Then we fit a second model including only the significant variables. 
 
 
 ###Model 2
